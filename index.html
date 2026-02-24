@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>무드푸드</title>
+  <meta name="description" content="기분에 따라 오늘 먹을 음식을 추천해주는 앱">
+  <meta property="og:title" content="무드푸드">
+  <meta property="og:description" content="기분에 따라 오늘 먹을 음식을 추천해드려요!">
+  <meta property="og:image" content="logo.png">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+
+  <!-- Pretendard Font -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Main Screen -->
+    <main class="main-content" id="mainScreen">
+      <!-- Header Section with floating emojis -->
+      <header class="header-section">
+        <div class="floating-emojis" aria-hidden="true">
+          <span class="floating-emoji floating-emoji--1"></span>
+          <span class="floating-emoji floating-emoji--2"></span>
+          <span class="floating-emoji floating-emoji--3"></span>
+          <span class="floating-emoji floating-emoji--4"></span>
+          <span class="floating-emoji floating-emoji--5"></span>
+          <span class="floating-emoji floating-emoji--6"></span>
+        </div>
+        <h1 class="app-title">무드푸드</h1>
+        <p class="app-tagline">기분에 맞는 메뉴 추천</p>
+      </header>
+
+      <!-- CTA Section -->
+      <section class="cta-section">
+        <p class="cta-subtitle">뭐 먹을지 1도 모르겠을 때</p>
+        <button class="btn-cta" id="btnRandomAll" type="button">
+          <span class="btn-cta-icon">🎲</span>
+          <span class="btn-cta-text">오늘 뭐먹지?</span>
+        </button>
+        <p class="cta-desc">광고 한 번이면 메뉴 고민 끝!</p>
+      </section>
+
+      <!-- Mood Category Section -->
+      <section class="mood-section">
+        <div class="mood-section-header">
+          <h2 class="mood-section-title">기분을 선택해주세요</h2>
+          <p class="mood-section-desc">기분에 맞는 메뉴를 추천해드려요</p>
+        </div>
+
+        <div class="mood-grid" id="moodGrid">
+          <!-- Mood buttons will be rendered by JS -->
+        </div>
+      </section>
+    </main>
+
+    <!-- Result Screen (overlay) -->
+    <div class="screen-overlay" id="resultScreen" hidden>
+      <div class="result-container">
+        <button class="result-close" id="resultCloseBtn" type="button" aria-label="닫기">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6l12 12" stroke="#191F28" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <div class="result-content" id="resultContent">
+          <p class="result-label" id="resultLabel">오늘의 추천 메뉴</p>
+          <div class="result-emoji" id="resultEmoji">&#127836;</div>
+          <h2 class="result-food-name" id="resultFoodName">로딩 중...</h2>
+          <p class="result-comment" id="resultComment"></p>
+          <div class="result-tags" id="resultTags"></div>
+        </div>
+
+        <div class="result-actions">
+          <button class="btn-secondary" id="btnRetry" type="button">광고 보고 다시 뽑기</button>
+          <button class="btn-primary" id="btnShare" type="button">공유하기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TDS Modal -->
+    <div class="modal-overlay" id="modalOverlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h3 class="modal-title" id="modalTitle"></h3>
+        <p class="modal-body" id="modalBody"></p>
+        <div class="modal-footer" id="modalFooter"></div>
+      </div>
+    </div>
+
+    <!-- TDS Toast -->
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
