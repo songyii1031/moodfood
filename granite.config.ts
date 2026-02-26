@@ -5,7 +5,7 @@ export default defineConfig({
   brand: {
     displayName: '무드푸드',
     primaryColor: '#3182F6',
-    icon: 'https://raw.githubusercontent.com/user/moodfood/main/logo.png',
+    icon: 'https://majestic-kleicha-bfaeb8.netlify.app/logo.png',
   },
   web: {
     host: 'localhost',
