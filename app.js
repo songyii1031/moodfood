@@ -232,6 +232,11 @@
     cacheDom();
     bindEvents();
     renderMoodButtons();
+    
+    // 광고 미리 로드 (SDK 로드 대기 후)
+    setTimeout(function() {
+      preloadAd();
+    }, 1000);
   }
 
   function cacheDom() {
@@ -340,11 +345,13 @@
       updateMoodButton(state.selectedMood, false);
     }
 
-    // 항상 선택 상태로 유지하고 바로 결과 표시
+    // 선택 상태 업데이트
     state.selectedMood = moodKey;
     updateMoodButton(moodKey, true);
-    // 선택 후 바로 추천
-    recommendByMood(moodKey);
+    
+    // 광고 보고 결과 표시 (해금된 기분도 광고 시청 필요)
+    state.pendingAction = { type: 'mood', moodKey: moodKey };
+    showAd();
   }
 
   function handleRetry() {
@@ -362,7 +369,21 @@
 
   function handleShare() {
     var foodName = dom.resultFoodName.textContent;
-    var text = '오늘의 추천 메뉴: ' + foodName + ' \uD83C\uDF7D\uFE0F\n무드푸드에서 추천받았어요!';
+    var foodEmoji = dom.resultEmoji.textContent;
+    var comment = dom.resultComment.textContent;
+    var moodLabel = dom.resultLabel.textContent;
+    
+    // 공유 텍스트 구성
+    var text = foodEmoji + ' 오늘의 추천 메뉴\n\n';
+    text += '**' + foodName + '**\n\n';
+    text += comment + '\n\n';
+    
+    // 기분 상태 표시 (오늘의 추천 메뉴가 아닌 경우)
+    if (moodLabel && moodLabel !== '오늘의 추천 메뉴') {
+      text += moodLabel + '\n\n';
+    }
+    
+    text += '무드푸드 메뉴 고르러 가기 \uD83D\uDC49 https://minion.toss.im/Zzzehtx3';
 
     if (navigator.share) {
       navigator.share({
@@ -405,65 +426,179 @@
   }
 
   // ─── 광고 시스템 ───
-  // 전면 광고 방식: 버튼 클릭 → SDK 전면 광고 호출 → 완료 후 결과 표시
-  // 토스 앱 외부에서는 테스트 모드로 동작 (광고 스킵)
+  // 토스 미니앱 광고 SDK 연동 (TOSS_MINIAPP_CHECKLIST.md 기반)
+  // @apps-in-toss/web-bridge의 GoogleAdMob 사용
 
   var AD_GROUP_ID = 'ait.v2.live.a3eac9b2608e407c';
   
-  // 토스 앱 내부인지 확인
-  function isInTossApp() {
-    return typeof window !== 'undefined' && 
-           (window.__granite || window.__appsInToss || 
-            (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function'));
-  }
+  // 광고 매니저 (문서 패턴 준수)
+  var TossAdManager = {
+    isAdLoaded: false,
+    isAdShowing: false,
+    loadCleanup: null,
+    showCleanup: null,
 
+    // SDK 사용 가능 여부 확인
+    isSDKAvailable: function() {
+      return typeof GoogleAdMob !== 'undefined' && 
+             typeof GoogleAdMob.loadAppsInTossAdMob === 'function' &&
+             typeof GoogleAdMob.showAppsInTossAdMob === 'function';
+    },
+
+    // 광고 미리 로드
+    loadAd: function(adGroupId, onLoaded, onError) {
+      var self = this;
+      
+      if (this.isAdLoaded) {
+        console.log('[MoodFood] 광고 이미 로드됨');
+        if (onLoaded) onLoaded();
+        return;
+      }
+
+      if (this.loadCleanup) {
+        this.loadCleanup();
+        this.loadCleanup = null;
+      }
+
+      if (this.isSDKAvailable()) {
+        console.log('[MoodFood] SDK 사용 가능, 광고 로드 시작:', adGroupId);
+        try {
+          this.loadCleanup = GoogleAdMob.loadAppsInTossAdMob({
+            options: { adGroupId: adGroupId },
+            onEvent: function(event) {
+              console.log('[MoodFood] 광고 로드 이벤트:', event && event.type);
+              if (event && event.type === 'loaded') {
+                self.isAdLoaded = true;
+                if (onLoaded) onLoaded();
+              }
+            },
+            onError: function(error) {
+              console.log('[MoodFood] 광고 로드 에러:', error);
+              self.isAdLoaded = false;
+              if (onError) onError(error);
+            }
+          });
+        } catch (e) {
+          console.log('[MoodFood] 광고 로드 예외:', e);
+          if (onError) onError(e);
+        }
+      } else {
+        // 테스트 모드 (토스 앱 외부)
+        console.log('[MoodFood] 테스트 모드: SDK 미사용, 광고 스킵');
+        setTimeout(function() {
+          self.isAdLoaded = true;
+          if (onLoaded) onLoaded();
+        }, 500);
+      }
+    },
+
+    // 광고 표시
+    showAd: function(adGroupId, onComplete, onError) {
+      var self = this;
+      
+      if (!this.isAdLoaded) {
+        console.log('[MoodFood] 광고가 준비되지 않음, 로드 후 표시 시도');
+        // 광고 로드 후 바로 표시
+        this.loadAd(adGroupId, function() {
+          self.showAd(adGroupId, onComplete, onError);
+        }, onError);
+        return;
+      }
+
+      if (this.isAdShowing) {
+        console.log('[MoodFood] 이미 광고 표시 중');
+        return;
+      }
+      this.isAdShowing = true;
+
+      if (this.isSDKAvailable()) {
+        console.log('[MoodFood] 광고 표시 시작');
+        try {
+          this.showCleanup = GoogleAdMob.showAppsInTossAdMob({
+            options: { adGroupId: adGroupId },
+            onEvent: function(event) {
+              console.log('[MoodFood] 광고 표시 이벤트:', event && event.type);
+              if (event && event.type === 'dismissed') {
+                self.isAdLoaded = false;
+                self.isAdShowing = false;
+                if (self.showCleanup) {
+                  self.showCleanup();
+                  self.showCleanup = null;
+                }
+                // 다음 광고 미리 로드
+                self.loadAd(adGroupId);
+                if (onComplete) onComplete();
+              }
+              else if (event && event.type === 'userEarnedReward') {
+                // 보상형 광고 완료
+                self.isAdLoaded = false;
+                self.isAdShowing = false;
+                if (self.showCleanup) {
+                  self.showCleanup();
+                  self.showCleanup = null;
+                }
+                self.loadAd(adGroupId);
+                if (onComplete) onComplete();
+              }
+              else if (event && event.type === 'failedToShow') {
+                self.isAdLoaded = false;
+                self.isAdShowing = false;
+                if (self.showCleanup) {
+                  self.showCleanup();
+                  self.showCleanup = null;
+                }
+                if (onError) onError({ message: '광고 표시 실패' });
+              }
+            },
+            onError: function(error) {
+              console.log('[MoodFood] 광고 표시 에러:', error);
+              self.isAdLoaded = false;
+              self.isAdShowing = false;
+              if (self.showCleanup) {
+                self.showCleanup();
+                self.showCleanup = null;
+              }
+              if (onError) onError(error);
+            }
+          });
+        } catch (e) {
+          console.log('[MoodFood] 광고 표시 예외:', e);
+          self.isAdShowing = false;
+          if (onError) onError(e);
+        }
+      } else {
+        // 테스트 모드
+        console.log('[MoodFood] 테스트 모드: 광고 시뮬레이션');
+        setTimeout(function() {
+          self.isAdLoaded = false;
+          self.isAdShowing = false;
+          self.loadAd(adGroupId);
+          if (onComplete) onComplete();
+        }, 1500);
+      }
+    },
+
+    isReady: function() {
+      return this.isAdLoaded && !this.isAdShowing;
+    }
+  };
+  
+  // 앱 초기화 시 광고 미리 로드
+  function preloadAd() {
+    TossAdManager.loadAd(AD_GROUP_ID, function() {
+      console.log('[MoodFood] 광고 사전 로드 완료');
+    }, function(err) {
+      console.log('[MoodFood] 광고 사전 로드 실패:', err);
+    });
+  }
+  
+  // 광고 표시 함수 (기존 showAd 대체)
   function showAd() {
     if (state.isAdShowing) return;
     state.isAdShowing = true;
     
-    // 토스 앱 외부에서는 테스트 모드 (광고 없이 바로 결과)
-    if (!isInTossApp()) {
-      console.log('[MoodFood] 테스트 모드: 광고 스킵');
-      setTimeout(function() {
-        onAdComplete();
-      }, 500);
-      return;
-    }
-    
-    // 토스 앱 내부: 실제 광고 SDK 사용
-    import('@apps-in-toss/web-framework').then(function (sdk) {
-      var GoogleAdMob = sdk.GoogleAdMob;
-      
-      if (!GoogleAdMob || typeof GoogleAdMob.loadAppsInTossAdMob !== 'function') {
-        console.log('[MoodFood] 광고 SDK 없음, 테스트 모드');
-        setTimeout(function() { onAdComplete(); }, 500);
-        return;
-      }
-      
-      GoogleAdMob.loadAppsInTossAdMob({
-        options: { adGroupId: AD_GROUP_ID },
-        onEvent: function (event) {
-          if (event.type === 'loaded') {
-            GoogleAdMob.showAppsInTossAdMob({
-              options: { adGroupId: AD_GROUP_ID },
-              onEvent: function (ev) {
-                if (ev.type === 'userEarnedReward' || ev.type === 'dismissed') {
-                  onAdComplete();
-                }
-              },
-              onError: function () { onAdFailed(); }
-            });
-          }
-        },
-        onError: function () { onAdFailed(); }
-      });
-    }).catch(function (err) {
-      console.log('[MoodFood] SDK 로드 실패, 테스트 모드:', err);
-      // SDK 로드 실패 시 테스트 모드로 폴백
-      setTimeout(function() { onAdComplete(); }, 500);
-    });
+    TossAdManager.showAd(AD_GROUP_ID, onAdComplete, onAdFailed);
   }
-
 
   function onAdComplete() {
     state.isAdShowing = false;
@@ -483,12 +618,20 @@
 
   function onAdFailed() {
     state.isAdShowing = false;
+    console.log('[MoodFood] 광고 실패, 결과 바로 표시');
+    
+    // 광고 실패해도 결과는 보여줌 (사용자 경험 우선)
+    var action = state.pendingAction;
+    if (!action) return;
+
+    if (action.type === 'random') {
+      recommendRandom();
+    } else if (action.type === 'mood') {
+      unlockMood(action.moodKey);
+      recommendByMood(action.moodKey);
+    }
+
     state.pendingAction = null;
-    showModal(
-      '광고를 불러오지 못했어요',
-      '잠시 후 다시 시도해주세요.',
-      [{ text: '확인', type: 'primary' }]
-    );
   }
 
   // ─── 기분 해금 ───

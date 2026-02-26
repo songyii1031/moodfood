@@ -95,6 +95,12 @@
     <div id="toastContainer" class="toast-container"></div>
   </div>
 
+  <!-- 토스 미니앱 광고 SDK -->
+  <script type="module">
+    import { GoogleAdMob } from '@apps-in-toss/web-bridge';
+    window.GoogleAdMob = GoogleAdMob;
+  </script>
+  
   <script src="app.js"></script>
 </body>
 </html>
